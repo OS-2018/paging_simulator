@@ -65,21 +65,36 @@ void TLB_delete(struct TLB * table, int reference) {
     }
 }
 
-void TLB_add(struct TLB * table, int reference) {
-    // populate the next available space in the pages array
-    // with a pointer to a page with given reference
-    // struct Page *temp = *table->pages; // set indexing page to head of array
-    int i = table->num_pages - 1;
-    while (i > 0) {
-        if (*(table->pages + i) != NULL) { // if space is unoccupied
+void TLB_print(struct TLB *table) {
+    int i = 0;
+    while (i < table->num_pages) {
+        if (*(table->pages + i) == NULL) {
+            printf("NULL\n");
+        } else {
+            printf("%d\n", (*(table->pages + i))->reference);
+        }
+        i++;
+    }
+    printf("~~~~~~~~~~~\n");
 
-            break;
+}
+
+void TLB_add(struct TLB * table, int reference) {
+    // start at end of array and set the current element to the previous element, then move back.
+    // after looping through to first element, set that to a new page with given reference
+    struct Page *temp;
+    int i = table->num_pages - 1; // start at end of array
+    while (i > 0) {
+        if (*(table->pages + i - 1) != NULL) { // if space is occupied, if not move on to the previous element
+            table->pages[i] = *(table->pages + i - 1);
+
         }
         i--;
-        // temp = *(table->pages + i);
     }
-    table->pages[0] = Page_constructor(reference);
+    table->pages[0] = Page_constructor(reference); //set final bit
 }
+
+
 
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
@@ -96,8 +111,8 @@ int main(int argc, char *argv[]) {
         line[7] = '\0';
         // printf("%s\n", &line[2]);
         address = strtoul(&line[2], NULL, 16);
-        printf("%d\n", address);
-        if (line[0] == 'W') {
+        // printf("%d\n", address);
+        if (line[0] == 'R') {
 
         }
 
@@ -116,7 +131,13 @@ int main(int argc, char *argv[]) {
             // max number of pages
             // querying for a page
             // TLB miss and hit cases
-    // struct TLB *table = TLB_constructor(8);
-    // TLB_add(table, 1);
+    struct TLB *table = TLB_constructor(4);
+    TLB_add(table, 1);
+    TLB_print(table);
+    TLB_add(table, 4);
+    TLB_print(table);
+    TLB_add(table, 2);
+    TLB_print(table);
+
     // printf("%d\n", TLB_search(table, 1)->reference);
 }
