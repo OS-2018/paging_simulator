@@ -14,6 +14,7 @@ struct Page * Page_constructor(int reference)
   {
     page->bits[i] = 0;
   }
+  page->dirty = 0;
   page->reference = reference;
   return page;
 }
@@ -65,6 +66,21 @@ void TLB_delete(struct TLB * table, int reference) {
     }
 }
 
+void TLB_add(struct TLB * table, int reference) {
+    // populate the next available space in the pages array
+    // with a pointer to a page with given reference
+    // struct Page *temp = *table->pages; // set indexing page to head of array
+    int i = table->num_pages - 1;
+    while (i > 0) {
+        if (*(table->pages + i) != NULL) { // if space is unoccupied
+             break;
+        }
+        i--;
+        // temp = *(table->pages + i);
+    }
+    table->pages[0] = Page_constructor(reference);
+}
+
 void TLB_print(struct TLB *table) {
     int i = 0;
     while (i < table->num_pages) {
@@ -79,22 +95,15 @@ void TLB_print(struct TLB *table) {
 
 }
 
-void TLB_add(struct TLB * table, int reference) {
-    // start at end of array and set the current element to the previous element, then move back.
-    // after looping through to first element, set that to a new page with given reference
-    struct Page *temp;
-    int i = table->num_pages - 1; // start at end of array
-    while (i > 0) {
-        if (*(table->pages + i - 1) != NULL) { // if space is occupied, if not move on to the previous element
-            table->pages[i] = *(table->pages + i - 1);
-
-        }
-        i--;
-    }
-    table->pages[0] = Page_constructor(reference); //set final bit
+//1 if full, 0 if not full
+int isFull(struct TLB * table)
+{
+  if (table->pages[table->num_pages - 1] != NULL)
+  {
+    return 1;
+  }
+  return 0;
 }
-
-
 
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
@@ -103,22 +112,56 @@ int main(int argc, char *argv[]) {
     size_t length = 10;
     char *line = NULL;
     int address;
+    int read_counter = 0;
+    int write_counter = 0;
+
+    struct TLB * cache = TLB_constructor(atoi(argv[2]));
 
     while (getline(&line, &length, inputfile)) { // read line until EOF
         if (feof(inputfile)) {
             break;
         }
-        line[7] = '\0';
-        // printf("%s\n", &line[2]);
-        address = strtoul(&line[2], NULL, 16);
-        // printf("%d\n", address);
-        if (line[0] == 'R') {
+        if (line[0] == 'R' || line[0] == 'W')
+        {
+            line[7] = '\0';
+            // printf("%s\n", &line[2]);
+            address = strtoul(&line[2], NULL, 16);
+            // printf("%d\n", address);
+            if (isFull(cache) == 1)
+            {
+                //page replacement algorithm
+            }
+            else
+            {
+                //int phys_page_num;
+                if (TLB_search(cache, address) == NULL) // if this page is not in the TLB
+                {
+                    // add it in
+                    TLB_add(cache, address);
+                    if (line[0] == 'W') {
+                        TLB_search(cache, address)->dirty = 1;
+                    }
 
+
+                    //int main_mem_index = 0;
+                    //phys_page_num = main_memory[main_mem_index];
+
+                    //add tag and physical page number to TLB
+                }
+                else
+                {
+                    struct Page * currentPage = TLB_search(cache, address);
+                    currentPage->bits[0] = 1;
+                    //int phys_page_num = currentPage->reference;
+                }
+                //create physical address from physical page number and page offset
+
+            }
         }
 
     }
 
-
+    TLB_print(cache);
 
 
 
@@ -131,13 +174,7 @@ int main(int argc, char *argv[]) {
             // max number of pages
             // querying for a page
             // TLB miss and hit cases
-    struct TLB *table = TLB_constructor(4);
-    TLB_add(table, 1);
-    TLB_print(table);
-    TLB_add(table, 4);
-    TLB_print(table);
-    TLB_add(table, 2);
-    TLB_print(table);
-
+    // struct TLB *table = TLB_constructor(8);
+    // TLB_add(table, 1);
     // printf("%d\n", TLB_search(table, 1)->reference);
 }
