@@ -173,7 +173,7 @@ struct Page * ARB(struct TLB * table)
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
     FILE *inputfile;
-    inputfile = fopen("input4.trace", "r"); // open file for reading
+    inputfile = fopen("test.trace", "r"); //file for reading
     size_t length = 10;
     char *line = NULL;
     int address;
@@ -195,10 +195,6 @@ int main(int argc, char *argv[]) {
         }
         if (line[0] == 'R' || line[0] == 'W')
         {
-            if (line[0] == 'R')
-            {
-                read_counter++;
-            }
             if (strcmp(argv[3],"ARB") == 0 || strcmp(argv[3],"EARB") == 0)
             {
                 if (i % interval)
@@ -224,7 +220,7 @@ int main(int argc, char *argv[]) {
                     // TLB_delete(cache, SC_delete->reference);
                     if (replacedPage->dirty == 1)
                     {
-                        read_counter--;
+                        write_counter++;
                     }
                     TLB_delete(cache, replacedPage->reference);
 
@@ -234,6 +230,7 @@ int main(int argc, char *argv[]) {
                 if (line[0] == 'W') {
                     TLB_search(cache, address)->dirty = 1;
                 }
+                read_counter++;
                 //add tag and physical page number to TLB
             }
             else
@@ -252,6 +249,7 @@ int main(int argc, char *argv[]) {
 
     printf("events in trace:  %d\n", i);
     printf("total disk reads:  %d\n", read_counter);
+    printf("total disk reads:  %d\n", write_counter);
 
     //TLB_print(cache);
 
