@@ -1,5 +1,7 @@
 #include "stdio.h"
 #include "stdlib.h"
+#include "string.h"
+
 struct Page
 {
   unsigned int bits[8];
@@ -57,28 +59,31 @@ void TLB_delete(struct TLB * table, int reference) {
     int i = 0;
     struct Page *temp = *table->pages; // set indexing page to head of array
     while (i < table->num_pages) {
-        if (reference == temp->reference) { // if the reference bit matches the one we're searching for
+        if (table->pages[i] != NULL) {
+            if (reference == table->pages[i]->reference) { // if the reference bit matches the one we're searching for
             // free((table->pages + i)); // free memory related to the ptr
-            temp = NULL; // set the pointer to NULL
+            // table->pages[i] = NULL; // set the pointer to NULL
+            break;
+            }
         }
         i++;
-        temp = *(table->pages + i);
     }
+    while (i < table->num_pages - 1) {
+        table->pages[i] = table->pages[i+1];
+        i++;
+    }
+    table->pages[i] = NULL;
 }
 
 void TLB_add(struct TLB * table, int reference) {
-    // populate the next available space in the pages array
-    // with a pointer to a page with given reference
-    // struct Page *temp = *table->pages; // set indexing page to head of array
-    int i = table->num_pages - 1;
-    while (i > 0) {
-        if (*(table->pages + i) != NULL) { // if space is unoccupied
-             break;
+    int i = 0; // start at end of array
+    while (i < table->num_pages) {
+        if (*(table->pages + i) == NULL) { // if space is not occupied, add it in
+            table->pages[i] = Page_constructor(reference);
+            break;
         }
-        i--;
-        // temp = *(table->pages + i);
+        i++;
     }
-    table->pages[0] = Page_constructor(reference);
 }
 
 void TLB_print(struct TLB *table) {
@@ -105,69 +110,150 @@ int isFull(struct TLB * table)
   return 0;
 }
 
+//reference bit to high order bit and discard low order bit
+struct Page * shiftRegister(struct Page * page)
+{
+  int temp = page->bits[7], temp1;
+  for (int i = 0; i < 8; i++) {
+    temp1 = page->bits[i];
+    page->bits[i] = temp;
+    temp = temp1;
+  }
+  page->bits[0] = 0;
+  return page;
+}
+
+void shiftTable(struct TLB * table)
+{
+    int i = 0;
+    while (i < table->num_pages)
+    {
+        if (table->pages[i] != NULL)
+        {
+            table->pages[i] = shiftRegister(table->pages[i]);
+        }
+        i++;
+    }
+}
+
+unsigned int array_to_int(unsigned int array[])
+{
+    int res = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        res = 10 * res + array[i];
+    }
+    return res;
+}
+
+struct Page * ARB(struct TLB * table)
+{
+    int i = 0;
+    struct Page * LRU = table->pages[0];
+    unsigned int min = array_to_int(table->pages[0]->bits);
+    unsigned int current_val;
+    while (i < table->num_pages)
+    {
+        if (table->pages[i] != NULL)
+        {
+            current_val = array_to_int(table->pages[i]->bits);
+            if (current_val < min)
+            {
+                min = current_val;
+                printf("min changed: %d\n", min);
+                LRU = table->pages[i];
+                //return table->pages[i];
+            }
+        }
+        i++;
+    }
+    return LRU;
+}
+
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
     FILE *inputfile;
-    inputfile = fopen("test.trace", "r"); // open file for reading
+    inputfile = fopen("input4.trace", "r"); // open file for reading
     size_t length = 10;
     char *line = NULL;
     int address;
     int read_counter = 0;
     int write_counter = 0;
+    int interval = 0;
+    //if interval is given
+    if (argc == 5)
+    {
+        interval = atoi(argv[4]);
+    }
 
     struct TLB * cache = TLB_constructor(atoi(argv[2]));
 
+    int i = 0;
     while (getline(&line, &length, inputfile)) { // read line until EOF
         if (feof(inputfile)) {
             break;
         }
         if (line[0] == 'R' || line[0] == 'W')
         {
+            if (line[0] == 'R')
+            {
+                read_counter++;
+            }
+            if (strcmp(argv[3],"ARB") == 0 || strcmp(argv[3],"EARB") == 0)
+            {
+                if (i % interval)
+                {
+                    shiftTable(cache);
+                }
+            }
             line[7] = '\0';
             // printf("%s\n", &line[2]);
             address = strtoul(&line[2], NULL, 16);
             // printf("%d\n", address);
-            if (isFull(cache) == 1)
+            //int phys_page_num;
+            if (TLB_search(cache, address) == NULL) // if this page is not in the TLB
             {
-                //page replacement algorithm
+                if (isFull(cache) == 1)
+                {
+                    //page replacement algorithm
+                    struct Page * replacedPage;
+                    if (strcmp(argv[3],"ARB") == 0)
+                    {
+                        replacedPage = ARB(cache);
+                    } else if (strcmp(argv[3],"SC")) {}
+                    // TLB_delete(cache, SC_delete->reference);
+                    if (replacedPage->dirty == 1)
+                    {
+                        read_counter--;
+                    }
+                    TLB_delete(cache, replacedPage->reference);
+
+                }
+                // add it in
+                TLB_add(cache, address);
+                if (line[0] == 'W') {
+                    TLB_search(cache, address)->dirty = 1;
+                }
+                //add tag and physical page number to TLB
             }
             else
             {
-                //int phys_page_num;
-                if (TLB_search(cache, address) == NULL) // if this page is not in the TLB
-                {
-                    // add it in
-                    TLB_add(cache, address);
-                    if (line[0] == 'W') {
-                        TLB_search(cache, address)->dirty = 1;
-                    }
-
-
-                    //int main_mem_index = 0;
-                    //phys_page_num = main_memory[main_mem_index];
-
-                    //add tag and physical page number to TLB
-                }
-                else
-                {
-                    struct Page * currentPage = TLB_search(cache, address);
-                    currentPage->bits[0] = 1;
-                    //int phys_page_num = currentPage->reference;
-                }
-                //create physical address from physical page number and page offset
-
+                struct Page * currentPage = TLB_search(cache, address);
+                currentPage->bits[0] = 1;
             }
+            //create physical address from physical page number and page offset
+
+
         }
+        i++;
+        // TLB_print(cache);
 
     }
 
-    TLB_print(cache);
+    printf("events in trace:  %d\n", i);
+    printf("total disk reads:  %d\n", read_counter);
 
-
-
-
-
-
+    //TLB_print(cache);
 
     // right now we need to implement:
         // TLB:
