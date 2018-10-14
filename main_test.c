@@ -160,7 +160,7 @@ struct Page * ARB(struct TLB * table)
             if (current_val < min)
             {
                 min = current_val;
-                printf("min changed: %d\n", min);
+                //printf("min changed: %d\n", min);
                 LRU = table->pages[i];
                 //return table->pages[i];
             }
@@ -173,7 +173,7 @@ struct Page * ARB(struct TLB * table)
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
     FILE *inputfile;
-    inputfile = fopen("test.trace", "r"); //file for reading
+    inputfile = fopen("input3.trace", "r"); //file for reading
     size_t length = 10;
     char *line = NULL;
     int address;
@@ -197,7 +197,7 @@ int main(int argc, char *argv[]) {
         {
             if (strcmp(argv[3],"ARB") == 0 || strcmp(argv[3],"EARB") == 0)
             {
-                if (i % interval)
+                if (i % interval == 0)
                 {
                     shiftTable(cache);
                 }
@@ -212,6 +212,7 @@ int main(int argc, char *argv[]) {
                 if (isFull(cache) == 1)
                 {
                     //page replacement algorithm
+                    printf("REPLACE:  page %d", address);
                     struct Page * replacedPage;
                     if (strcmp(argv[3],"ARB") == 0)
                     {
@@ -220,8 +221,10 @@ int main(int argc, char *argv[]) {
                     // TLB_delete(cache, SC_delete->reference);
                     if (replacedPage->dirty == 1)
                     {
+                        printf(" (DIRTY)");
                         write_counter++;
                     }
+                    printf("\n");
                     TLB_delete(cache, replacedPage->reference);
 
                 }
@@ -231,10 +234,12 @@ int main(int argc, char *argv[]) {
                     TLB_search(cache, address)->dirty = 1;
                 }
                 read_counter++;
+                printf("MISS:  page %d\n", address);
                 //add tag and physical page number to TLB
             }
             else
             {
+                printf("HIT:  page %d\n", address);
                 struct Page * currentPage = TLB_search(cache, address);
                 currentPage->bits[0] = 1;
             }
