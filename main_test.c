@@ -100,6 +100,16 @@ void TLB_print(struct TLB *table) {
 
 }
 
+void printBits(unsigned int array[])
+{
+    printf("Bits: ");
+    for (int i = 0; i < 8; i++)
+    {
+        printf("%d", array[i]);
+    }
+    printf("~~~~~~~~~~~~~~~~\n");
+}
+
 //1 if full, 0 if not full
 int isFull(struct TLB * table)
 {
@@ -130,7 +140,9 @@ void shiftTable(struct TLB * table)
     {
         if (table->pages[i] != NULL)
         {
+            //printBits(table->pages[i]->bits);
             table->pages[i] = shiftRegister(table->pages[i]);
+            //printBits(table->pages[i]->bits);
         }
         i++;
     }
@@ -145,6 +157,7 @@ unsigned int array_to_int(unsigned int array[])
     }
     return res;
 }
+
 
 struct Page * ARB(struct TLB * table)
 {
@@ -173,7 +186,7 @@ struct Page * ARB(struct TLB * table)
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
     FILE *inputfile;
-    inputfile = fopen("input3.trace", "r"); //file for reading
+    inputfile = fopen("input4.trace", "r"); //file for reading
     size_t length = 10;
     char *line = NULL;
     int address;
@@ -209,16 +222,18 @@ int main(int argc, char *argv[]) {
             //int phys_page_num;
             if (TLB_search(cache, address) == NULL) // if this page is not in the TLB
             {
+                read_counter++;
+                printf("MISS:  page %d\n", address);
                 if (isFull(cache) == 1)
                 {
                     //page replacement algorithm
-                    printf("REPLACE:  page %d", address);
                     struct Page * replacedPage;
                     if (strcmp(argv[3],"ARB") == 0)
                     {
                         replacedPage = ARB(cache);
                     } else if (strcmp(argv[3],"SC")) {}
                     // TLB_delete(cache, SC_delete->reference);
+                    printf("REPLACE:  page %d", replacedPage->reference);
                     if (replacedPage->dirty == 1)
                     {
                         printf(" (DIRTY)");
@@ -226,15 +241,12 @@ int main(int argc, char *argv[]) {
                     }
                     printf("\n");
                     TLB_delete(cache, replacedPage->reference);
-
                 }
                 // add it in
                 TLB_add(cache, address);
                 if (line[0] == 'W') {
                     TLB_search(cache, address)->dirty = 1;
                 }
-                read_counter++;
-                printf("MISS:  page %d\n", address);
                 //add tag and physical page number to TLB
             }
             else
@@ -245,16 +257,15 @@ int main(int argc, char *argv[]) {
             }
             //create physical address from physical page number and page offset
 
-
+            i++;
         }
-        i++;
         // TLB_print(cache);
 
     }
 
     printf("events in trace:  %d\n", i);
     printf("total disk reads:  %d\n", read_counter);
-    printf("total disk reads:  %d\n", write_counter);
+    printf("total disk writes:  %d\n", write_counter);
 
     //TLB_print(cache);
 
