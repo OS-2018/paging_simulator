@@ -2,6 +2,7 @@
 #include "stdlib.h"
 #include "string.h"
 #include "math.h"
+#include "limits.h"
 
 struct Page
 {
@@ -18,7 +19,7 @@ struct Page * Page_constructor(int reference)
   {
     page->bits[i] = 0;
   }
-  page->SCbit = 0;
+  page->SCbit = 1;
   page->dirty = 0;
   page->reference = reference;
   return page;
@@ -27,6 +28,7 @@ struct Page * Page_constructor(int reference)
 struct TLB {
     struct Page **pages;
     int num_pages;
+    int counter;
 };
 
 struct TLB * TLB_constructor(int num_pages_given) {
@@ -39,6 +41,7 @@ struct TLB * TLB_constructor(int num_pages_given) {
     //   temp = (table->pages + i);
     // }
     table->num_pages = num_pages_given;
+    table->counter = 0;
     return table;
 }
 
@@ -103,6 +106,16 @@ void TLB_print(struct TLB *table) {
 
 }
 
+unsigned int array_to_int(unsigned int array[])
+{
+    int res = 0;
+    for (int i = 0; i < 8; i++)
+    {
+        res = 10 * res + array[i];
+    }
+    return res;
+}
+
 void printBits(unsigned int array[])
 {
     printf("Bits: ");
@@ -110,8 +123,23 @@ void printBits(unsigned int array[])
     {
         printf("%d", array[i]);
     }
-    printf("~~~~~~~~~~~~~~~~\n");
+
 }
+
+void TLB_print_bits(struct TLB *table) {
+    int i = 0;
+    while (i < table->num_pages) {
+        if (*(table->pages + i) == NULL) {
+            printf("NULL\n");
+        } else {
+            printf("    Page: %d    ", table->pages[i]->reference);
+            printBits(table->pages[i]->bits);
+            printf("    Dirty: %d\n", table->pages[i]->dirty);
+        }
+        i++;
+    }
+}
+
 
 //1 if full, 0 if not full
 int isFull(struct TLB * table)
@@ -151,17 +179,6 @@ void shiftTable(struct TLB * table)
     }
 }
 
-unsigned int array_to_int(unsigned int array[])
-{
-    int res = 0;
-    for (int i = 0; i < 8; i++)
-    {
-        res = 10 * res + array[i];
-    }
-    return res;
-}
-
-
 struct Page * ARB(struct TLB * table)
 {
     int i = 0;
@@ -173,6 +190,8 @@ struct Page * ARB(struct TLB * table)
         if (table->pages[i] != NULL)
         {
             current_val = array_to_int(table->pages[i]->bits);
+            // printf("current val: %d\n", current_val);
+            // printf("min%d\n", min);
             if (current_val < min)
             {
                 min = current_val;
@@ -189,24 +208,147 @@ struct Page * ARB(struct TLB * table)
 // second chance uses the zeroth element of TLB->bit as the indicator bit
 // CHANGED: using SCbit now
 struct Page * SC_select(struct TLB *table) {
-    int i = 0;
     while (table->pages[0] != NULL) {
-        while (i < table->num_pages) {
-            if (table->pages[i] != NULL) {
-                if (table->pages[i]->SCbit == 0) {
+        while (table->counter < table->num_pages) {
+            if (table->pages[table->counter] != NULL) {
+                if (table->pages[table->counter]->SCbit == 1) {
                     // giving it a second chance
-                    table->pages[i]->SCbit = 1;
+                    table->pages[table->counter]->SCbit = 0;
                 } else {
                     // choose the FIFO page that HAS been given second chance
-                    return table->pages[i];
+                    return table->pages[table->counter];
                 }
             }
-            i++;
+            table->counter++;
         }
-        i=0;
+        table->counter=0;
     }
     return NULL;
 }
+
+int all_clean_or_dirty(struct TLB * table)
+{
+    int i = 0;
+    int clean = 0;
+    int dirty = 0;
+    while (i < table->num_pages)
+    {
+        if (table->pages[i]->dirty == 1)
+        {
+            dirty++;
+        }
+        else
+        {
+            clean++;
+        }
+        i++;
+    }
+    if (clean == table->num_pages || dirty == table->num_pages)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+struct Page * EARB(struct TLB * table)
+{
+    if (all_clean_or_dirty(table) == 1)
+    {
+        return ARB(table);
+    }
+    int i = 0;
+    struct Page * LRU = table->pages[0];
+    unsigned int min = array_to_int(table->pages[0]->bits);
+    unsigned int current_val;
+    while (i < table->num_pages)
+    {
+        if (table->pages[i] != NULL)
+        {
+            current_val = array_to_int(table->pages[i]->bits);
+            // printf("current val: %d\n", current_val);
+            // printf("min%d\n", min);
+            if (current_val < min)
+            {
+                min = current_val;
+                //printf("min changed: %d\n", min);
+                LRU = table->pages[i];
+                //return table->pages[i];
+            }
+        }
+        i++;
+    }
+    //if the LRU has been modified
+    if (LRU->dirty == 1)
+    {
+        // TLB_print_bits(table);
+        // printf("KDSBDKSAD\n");
+        int index = 0;
+        //find the interval at which the modified page was last used.
+        for (int i = 0; i < 8; i++)
+        {
+            if (LRU->bits[i] == 1)
+            {
+                index = i;
+                break;
+            }
+        }
+        if (index == 0)
+        {
+            return LRU;
+        }
+        // printf("index: %d\n", index);
+        unsigned int min = INT_MAX;
+        for (int i = 0; i < table->num_pages; i++)
+        {
+            for (int j = index - 1; j != index - 3; j--)
+            {
+                if (table->pages[i]->bits[j] == 1)
+                {
+                    if (array_to_int(table->pages[i]->bits) < min)
+                    {
+                        // printf("j: %d\n", j);
+                        min = array_to_int(table->pages[i]->bits);
+                        LRU = table->pages[i];
+                    }
+                }
+            }
+        }
+
+    }
+    return LRU;
+}
+
+struct Page * ESC_select(struct TLB *cache) {
+    int i = 0;
+    while (1) {
+        // search through buffer for (0,0) pages
+        while (i < cache->num_pages) {
+            if (cache->pages[cache->counter]->SCbit == 0 && cache->pages[cache->counter]->dirty == 0) {
+                return cache->pages[cache->counter];
+            }
+            i++;
+            cache->counter++;
+            if (cache->counter == cache->num_pages) {
+                cache->counter = 0;
+            }
+        }
+        i = 0;
+        // search through buffer for (0,1) pages
+        while (i < cache->num_pages) {
+            if (cache->pages[cache->counter]->SCbit == 0 && cache->pages[cache->counter]->dirty == 1) {
+                return cache->pages[cache->counter];
+            }
+            cache->pages[cache->counter]->SCbit = 0;
+            i++;
+            cache->counter++;
+            if (cache->counter == cache->num_pages) {
+                cache->counter = 0;
+            }
+        }
+        i = 0;
+    }
+}
+
 
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
@@ -227,6 +369,7 @@ int main(int argc, char *argv[]) {
     struct TLB * cache = TLB_constructor(atoi(argv[3]));
 
     int i = 0;
+
     while (getline(&line, &length, inputfile)) { // read line until EOF
         if (feof(inputfile)) {
             break;
@@ -237,7 +380,11 @@ int main(int argc, char *argv[]) {
             {
                 if (i % interval == 0)
                 {
+                    // printf("WE ARE SHIFTING\n");
+                    // TLB_print_bits(cache);
+                    // printf("~~~~~~~~~~~~~~~\n");
                     shiftTable(cache);
+                    // TLB_print_bits(cache);
                 }
             }
             // line[10 - (int )ceil((log(atoi(argv[2]))/log(16)))] = '\0';
@@ -249,7 +396,7 @@ int main(int argc, char *argv[]) {
             if (TLB_search(cache, address) == NULL) // if this page is not in the TLB
             {
                 read_counter++;
-                printf("MISS:    page %d\n", address);
+                // printf("MISS:    page %d\n", address);
                 if (isFull(cache) == 1)
                 {
                     //page replacement algorithm
@@ -259,15 +406,19 @@ int main(int argc, char *argv[]) {
                         replacedPage = ARB(cache);
                     } else if (strcmp(argv[4],"SC") == 0) {
                         replacedPage = SC_select(cache);
+                    } else if (strcmp(argv[4],"EARB") == 0) {
+                        replacedPage = EARB(cache);
+                    } else if (strcmp(argv[4],"ESC") == 0) {
+                        replacedPage = ESC_select(cache);
                     }
                     // TLB_delete(cache, SC_delete->reference);
-                    printf("REPLACE: page %d", replacedPage->reference);
+                    // printf("REPLACE: page %d", replacedPage->reference);
                     if (replacedPage->dirty == 1)
                     {
-                        printf(" (DIRTY)");
+                        // printf(" (DIRTY)");
                         write_counter++;
                     }
-                    printf("\n");
+                    // printf("\n");
                     TLB_delete(cache, replacedPage->reference);
                 }
                 // add it in
@@ -276,13 +427,19 @@ int main(int argc, char *argv[]) {
                     TLB_search(cache, address)->dirty = 1;
                 }
                 //add tag and physical page number to TLB
+                TLB_search(cache, address)->bits[0] = 1;
+                // struct Page * currentPage = TLB_search(cache, address);
+                // currentPage->bits[0] = 1;
             }
             else
             {
-                printf("HIT:     page %d\n", address);
+                // printf("HIT:     page %d\n", address);
                 struct Page * currentPage = TLB_search(cache, address);
                 currentPage->bits[0] = 1;
-                currentPage->SCbit = 0;
+                currentPage->SCbit = 1;
+                if (line[0] == 'W') {
+                    TLB_search(cache, address)->dirty = 1;
+                }
             }
             //create physical address from physical page number and page offset
 
