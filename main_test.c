@@ -240,7 +240,8 @@ int main(int argc, char *argv[]) {
                     shiftTable(cache);
                 }
             }
-            line[10 - (int )ceil((log(atoi(argv[2]))/log(16)))] = '\0';
+            // line[10 - (int )ceil((log(atoi(argv[2]))/log(16)))] = '\0';
+            line[7] = '\0';
             // printf("%s\n", &line[2]);
             address = strtoul(&line[2], NULL, 16);
             // printf("%d\n", address);
@@ -248,7 +249,7 @@ int main(int argc, char *argv[]) {
             if (TLB_search(cache, address) == NULL) // if this page is not in the TLB
             {
                 read_counter++;
-                printf("MISS:  page %d\n", address);
+                printf("MISS:    page %d\n", address);
                 if (isFull(cache) == 1)
                 {
                     //page replacement algorithm
@@ -256,9 +257,11 @@ int main(int argc, char *argv[]) {
                     if (strcmp(argv[4],"ARB") == 0)
                     {
                         replacedPage = ARB(cache);
-                    } else if (strcmp(argv[4],"SC")) {}
+                    } else if (strcmp(argv[4],"SC") == 0) {
+                        replacedPage = SC_select(cache);
+                    }
                     // TLB_delete(cache, SC_delete->reference);
-                    printf("REPLACE:  page %d", replacedPage->reference);
+                    printf("REPLACE: page %d", replacedPage->reference);
                     if (replacedPage->dirty == 1)
                     {
                         printf(" (DIRTY)");
@@ -276,7 +279,7 @@ int main(int argc, char *argv[]) {
             }
             else
             {
-                printf("HIT:  page %d\n", address);
+                printf("HIT:     page %d\n", address);
                 struct Page * currentPage = TLB_search(cache, address);
                 currentPage->bits[0] = 1;
                 currentPage->SCbit = 0;
@@ -289,8 +292,8 @@ int main(int argc, char *argv[]) {
 
     }
 
-    printf("events in trace:  %d\n", i);
-    printf("total disk reads:  %d\n", read_counter);
+    printf("events in trace:    %d\n", i);
+    printf("total disk reads:   %d\n", read_counter);
     printf("total disk writes:  %d\n", write_counter);
 
     //TLB_print(cache);
