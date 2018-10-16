@@ -1,6 +1,7 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "math.h"
 
 struct Page
 {
@@ -186,7 +187,7 @@ struct Page * ARB(struct TLB * table)
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
     FILE *inputfile;
-    inputfile = fopen("input4.trace", "r"); //file for reading
+    inputfile = fopen(argv[1], "r"); //file for reading
     size_t length = 10;
     char *line = NULL;
     int address;
@@ -194,12 +195,12 @@ int main(int argc, char *argv[]) {
     int write_counter = 0;
     int interval = 0;
     //if interval is given
-    if (argc == 5)
+    if (argc == 6)
     {
-        interval = atoi(argv[4]);
+        interval = atoi(argv[5]);
     }
 
-    struct TLB * cache = TLB_constructor(atoi(argv[2]));
+    struct TLB * cache = TLB_constructor(atoi(argv[3]));
 
     int i = 0;
     while (getline(&line, &length, inputfile)) { // read line until EOF
@@ -208,14 +209,14 @@ int main(int argc, char *argv[]) {
         }
         if (line[0] == 'R' || line[0] == 'W')
         {
-            if (strcmp(argv[3],"ARB") == 0 || strcmp(argv[3],"EARB") == 0)
+            if (strcmp(argv[4],"ARB") == 0 || strcmp(argv[4],"EARB") == 0)
             {
                 if (i % interval == 0)
                 {
                     shiftTable(cache);
                 }
             }
-            line[7] = '\0';
+            line[10 - (int )ceil((log(atoi(argv[2]))/log(16)))] = '\0';
             // printf("%s\n", &line[2]);
             address = strtoul(&line[2], NULL, 16);
             // printf("%d\n", address);
@@ -228,10 +229,10 @@ int main(int argc, char *argv[]) {
                 {
                     //page replacement algorithm
                     struct Page * replacedPage;
-                    if (strcmp(argv[3],"ARB") == 0)
+                    if (strcmp(argv[4],"ARB") == 0)
                     {
                         replacedPage = ARB(cache);
-                    } else if (strcmp(argv[3],"SC")) {}
+                    } else if (strcmp(argv[4],"SC")) {}
                     // TLB_delete(cache, SC_delete->reference);
                     printf("REPLACE:  page %d", replacedPage->reference);
                     if (replacedPage->dirty == 1)
