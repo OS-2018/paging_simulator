@@ -1,21 +1,41 @@
+
+struct TLB {
+    struct Page **pages;
+    int num_pages;
+    int counter;
+};
+
+struct TLB * TLB_constructor(int num_pages_given) {
+    struct TLB * table = (struct TLB*)malloc(sizeof(struct TLB));
+    table->pages = calloc(num_pages_given , sizeof(struct Page**)); // allocate space for enough pointers to pages
+    // struct Page *temp = table->pages;
+    // for (int i = 0; i < num_pages_given; i++)
+    // {
+    //   (table->pages + 1) = NULL;
+    //   temp = (table->pages + i);
+    // }
+    table->num_pages = num_pages_given;
+    table->counter = 0;
+    return table;
+}
+
 // second chance uses the zeroth element of TLB->bit as the indicator bit
-// NOTE: reference bit is flipped from the specification in the text book
+// CHANGED: using SCbit now
 struct Page * SC_select(struct TLB *table) {
-    int i = 0;
     while (table->pages[0] != NULL) {
-        while (i < table->num_pages) {
-            if (table->pages[i] != NULL) {
-                if (table->pages[i]->bits[0] == 0) {
+        while (table->counter < table->num_pages) {
+            if (table->pages[table->counter] != NULL) {
+                if (table->pages[table->counter]->SCbit == 0) {
                     // giving it a second chance
-                    table->pages[i]->bits[0] = 1;
+                    table->pages[table->counter]->SCbit = 1;
                 } else {
-                    // if the page hasn't been
-                    return table->pages[i];
+                    // choose the FIFO page that HAS been given second chance
+                    return table->pages[table->counter];
                 }
             }
-            i++;
+            table->counter++;
         }
-        i=0;
+        table->counter=0;
     }
     return NULL;
 }
