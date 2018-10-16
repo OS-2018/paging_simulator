@@ -6,6 +6,7 @@
 struct Page
 {
   unsigned int bits[8];
+  unsigned int SCbit;
   int reference;
   int dirty;
 };
@@ -17,6 +18,7 @@ struct Page * Page_constructor(int reference)
   {
     page->bits[i] = 0;
   }
+  page->SCbit = 0;
   page->dirty = 0;
   page->reference = reference;
   return page;
@@ -184,6 +186,28 @@ struct Page * ARB(struct TLB * table)
     return LRU;
 }
 
+// second chance uses the zeroth element of TLB->bit as the indicator bit
+// CHANGED: using SCbit now
+struct Page * SC_select(struct TLB *table) {
+    int i = 0;
+    while (table->pages[0] != NULL) {
+        while (i < table->num_pages) {
+            if (table->pages[i] != NULL) {
+                if (table->pages[i]->SCbit == 0) {
+                    // giving it a second chance
+                    table->pages[i]->SCbit = 1;
+                } else {
+                    // choose the FIFO page that HAS been given second chance
+                    return table->pages[i];
+                }
+            }
+            i++;
+        }
+        i=0;
+    }
+    return NULL;
+}
+
 int main(int argc, char *argv[]) {
     // we'll worry about reading from file later
     FILE *inputfile;
@@ -255,6 +279,7 @@ int main(int argc, char *argv[]) {
                 printf("HIT:  page %d\n", address);
                 struct Page * currentPage = TLB_search(cache, address);
                 currentPage->bits[0] = 1;
+                currentPage->SCbit = 0;
             }
             //create physical address from physical page number and page offset
 
