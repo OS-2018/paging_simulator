@@ -4,6 +4,10 @@
 #include "math.h"
 #include "limits.h"
 
+//Group members:
+//Charles Catt: A1726075
+//Andy Yu: A1721071
+
 struct Page
 {
   unsigned int bits[8];
@@ -377,6 +381,7 @@ struct Page * ESC_select(struct TLB *cache) {
 
 
 int main(int argc, char *argv[]) {
+    int page_size = atoi(argv[2]);
     // we'll worry about reading from file later
     FILE *inputfile;
     inputfile = fopen(argv[1], "r"); //file for reading
@@ -414,9 +419,10 @@ int main(int argc, char *argv[]) {
                 }
             }
             // line[10 - (int )ceil((log(atoi(argv[2]))/log(16)))] = '\0';
-            line[7] = '\0';
+            //line[7] = '\0';
+            address = (int )strtoul(&line[2], NULL, 16) / page_size;
             // printf("%s\n", &line[2]);
-            address = strtoul(&line[2], NULL, 16);
+            //address = strtoul(&line[2], NULL, 16);
             // printf("%d\n", address);
             //int phys_page_num;
             if (TLB_search(cache, address) == NULL) // if this page is not in the TLB
