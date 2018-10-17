@@ -256,6 +256,7 @@ struct Page * EARB(struct TLB * table)
     {
         return ARB(table);
     }
+    //find LRU
     int i = 0;
     struct Page * LRU = table->pages[0];
     unsigned int min = array_to_int(table->pages[0]->bits);
@@ -265,14 +266,10 @@ struct Page * EARB(struct TLB * table)
         if (table->pages[i] != NULL)
         {
             current_val = array_to_int(table->pages[i]->bits);
-            // printf("current val: %d\n", current_val);
-            // printf("min%d\n", min);
             if (current_val < min)
             {
                 min = current_val;
-                //printf("min changed: %d\n", min);
                 LRU = table->pages[i];
-                //return table->pages[i];
             }
         }
         i++;
@@ -280,39 +277,68 @@ struct Page * EARB(struct TLB * table)
     //if the LRU has been modified
     if (LRU->dirty == 1)
     {
-        // TLB_print_bits(table);
-        // printf("KDSBDKSAD\n");
-        int index = 0;
+        int dirty_index = -1;
         //find the interval at which the modified page was last used.
         for (int i = 0; i < 8; i++)
         {
             if (LRU->bits[i] == 1)
             {
-                index = i;
+                dirty_index = i;
                 break;
             }
         }
-        if (index == 0)
-        {
-            return LRU;
-        }
-        // printf("index: %d\n", index);
+        //find LRU of clean pages
+        int i = 0;
+        struct Page * LRU_clean = table->pages[0];
         unsigned int min = INT_MAX;
-        for (int i = 0; i < table->num_pages; i++)
+        unsigned int current_val;
+        while (i < table->num_pages)
         {
-            for (int j = index - 1; j != index - 3; j--)
+            if (table->pages[i] != NULL)
             {
-                if (table->pages[i]->bits[j] == 1)
+                if (table->pages[i]->dirty == 0)
                 {
-                    if (array_to_int(table->pages[i]->bits) < min)
+                    current_val = array_to_int(table->pages[i]->bits);
+                    if (current_val < min)
                     {
-                        // printf("j: %d\n", j);
-                        min = array_to_int(table->pages[i]->bits);
-                        LRU = table->pages[i];
+                        min = current_val;
+                        LRU_clean = table->pages[i];
                     }
                 }
             }
+            i++;
         }
+        if (dirty_index == -1)
+        {
+            return LRU_clean;
+        }
+        else
+        {
+            //check intervals
+            int clean_index = -1;
+            for (int i = 0; i < 8; i++)
+            {
+                if (LRU_clean->bits[i] == 1)
+                {
+                    clean_index = i;
+                    break;
+                }
+            }
+            if (clean_index == -1)
+            {
+                return LRU_clean;
+            }
+            if (dirty_index - clean_index <= 3)
+            {
+                return LRU_clean;
+            }
+            else
+            {
+                return LRU;
+            }
+        }
+
+
 
     }
     return LRU;
