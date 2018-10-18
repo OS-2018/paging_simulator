@@ -61,7 +61,7 @@ struct Page * TLB_search(struct TLB *cache, unsigned long given_reference) {
     return NULL;
 }
 
-void TLB_delete(struct TLB * cache, unsigned long reference) {
+void TLB_delete(struct TLB * cache, unsigned long reference, int shift) {
     // we search for a page with matching reference and delete it.
     int i = 0;
     while (i < cache->num_pages) {
@@ -75,12 +75,17 @@ void TLB_delete(struct TLB * cache, unsigned long reference) {
     }
     // free the associated memory
     free(cache->pages[i]);
-    // go through the rest of the array, updating the pointers
-    while (i < cache->num_pages - 1) {
-        cache->pages[i] = cache->pages[i+1];
-        i++;
-    }
+    // set the ptr to null
     cache->pages[i] = NULL;
+
+    // if necessary, go through the rest of the array, updating the pointers
+    if (shift) {
+        while (i < cache->num_pages - 1) {
+            cache->pages[i] = cache->pages[i+1];
+            i++;
+        }
+        cache->pages[i] = NULL;
+    }
 }
 
 void TLB_add(struct TLB * cache, unsigned long reference) {
@@ -209,7 +214,12 @@ struct Page * SC_select(struct TLB *cache) {
             cache->pages[cache->counter]->SCbit = 0;
         } else {
             // choose the FIFO page that has been given second chance
-            return cache->pages[cache->counter];
+            int temp = cache->counter;
+            cache->counter++;
+            if (cache->counter == cache->num_pages) {
+                cache->counter = 0;
+            }
+            return cache->pages[temp];
         }
         cache->counter++;
         if (cache->counter == cache->num_pages) {
@@ -343,7 +353,12 @@ struct Page * ESC_select(struct TLB *cache) {
         // search through buffer for (0,0) pages
         while (i < cache->num_pages) {
             if (cache->pages[cache->counter]->SCbit == 0 && cache->pages[cache->counter]->dirty == 0) {
-                return cache->pages[cache->counter];
+                int temp = cache->counter;
+                cache->counter++;
+                if (cache->counter == cache->num_pages) {
+                    cache->counter = 0;
+                }
+                return cache->pages[temp];
             }
             i++;
             cache->counter++;
@@ -355,7 +370,12 @@ struct Page * ESC_select(struct TLB *cache) {
         // search through buffer for (0,1) pages
         while (i < cache->num_pages) {
             if (cache->pages[cache->counter]->SCbit == 0 && cache->pages[cache->counter]->dirty == 1) {
-                return cache->pages[cache->counter];
+                int temp = cache->counter;
+                cache->counter++;
+                if (cache->counter == cache->num_pages) {
+                    cache->counter = 0;
+                }
+                return cache->pages[temp];
             }
             cache->pages[cache->counter]->SCbit = 0;
             i++;
@@ -403,7 +423,7 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            address = strtoul(&line[2], NULL, 16)/ page_size;
+            address = strtoul(&line[2], NULL, 16) / page_size;
 
             // if this page is not in the TLB
             if (TLB_search(cache, address) == NULL)
@@ -422,6 +442,7 @@ int main(int argc, char *argv[]) {
                         replacedPage = EARB(cache);
                     } else if (strcmp(argv[4],"ESC") == 0) {
                         replacedPage = ESC_select(cache);
+
                     }
                     // printf("REPLACE: page %d", replacedPage->reference);
                     if (replacedPage->dirty == 1)
@@ -430,7 +451,12 @@ int main(int argc, char *argv[]) {
                         write_counter++;
                     }
                     // printf("\n");
-                    TLB_delete(cache, replacedPage->reference);
+                    if (strcmp(argv[4],"SC") == 0 || strcmp(argv[4],"ESC") == 0) {
+                        TLB_delete(cache, replacedPage->reference, 0);
+                    } else {
+                        TLB_delete(cache, replacedPage->reference, 1);
+                    }
+
                 }
                 // add it in
                 TLB_add(cache, address);
