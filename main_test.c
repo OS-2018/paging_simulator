@@ -1,3 +1,4 @@
+
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
@@ -8,7 +9,7 @@
 //Charles Catt: A1726075
 //Andy Yu: A1721071
 
-//storing page information
+// storing page information
 struct Page
 {
   unsigned int bits[8];
@@ -17,7 +18,7 @@ struct Page
   int dirty;
 };
 
-//initialisation for page
+// initialisation for page
 struct Page * Page_constructor(unsigned long reference)
 {
   //allocate memory
@@ -32,15 +33,17 @@ struct Page * Page_constructor(unsigned long reference)
   return page;
 }
 
-//storing TLB information
-struct TLB {
+// storing TLB information
+struct TLB
+{
     struct Page **pages;
     int num_pages;
     int counter;
 };
 
-//initialisation for TLB
-struct TLB * TLB_constructor(int num_pages_given) {
+// initialisation for TLB
+struct TLB * TLB_constructor(int num_pages_given)
+{
     struct TLB * cache = (struct TLB*)malloc(sizeof(struct TLB));
     // allocate space for enough pointers to pages
     // calloc used to set ptrs to NULL by default
@@ -50,8 +53,9 @@ struct TLB * TLB_constructor(int num_pages_given) {
     return cache;
 }
 
-//search for a page within the TLB
-struct Page * TLB_search(struct TLB *cache, unsigned long given_reference) {
+// search for a page within the TLB
+struct Page * TLB_search(struct TLB *cache, unsigned long given_reference)
+{
     int i = 0;
     while (i < cache->num_pages) {
         if (cache->pages[i] != NULL) {
@@ -67,8 +71,9 @@ struct Page * TLB_search(struct TLB *cache, unsigned long given_reference) {
     return NULL;
 }
 
-//delete a page within the TLB
-void TLB_delete(struct TLB * cache, unsigned long reference, int shift) {
+// delete a page within the TLB
+void TLB_delete(struct TLB * cache, unsigned long reference, int shift)
+{
     // we search for a page with matching reference and delete it.
     int i = 0;
     while (i < cache->num_pages) {
@@ -86,6 +91,7 @@ void TLB_delete(struct TLB * cache, unsigned long reference, int shift) {
     cache->pages[i] = NULL;
 
     // if necessary, go through the rest of the array, updating the pointers
+    // SHOULD NOT be used for SC and ESC
     if (shift) {
         while (i < cache->num_pages - 1) {
             cache->pages[i] = cache->pages[i+1];
@@ -95,8 +101,9 @@ void TLB_delete(struct TLB * cache, unsigned long reference, int shift) {
     }
 }
 
-//add a page to the TLB
-void TLB_add(struct TLB * cache, unsigned long reference) {
+// add a page to the TLB
+void TLB_add(struct TLB * cache, unsigned long reference)
+{
     int i = 0;
     while (i < cache->num_pages) {
         // if space is not occupied, add it in
@@ -108,8 +115,9 @@ void TLB_add(struct TLB * cache, unsigned long reference) {
     }
 }
 
-//print all pages currently in the TLB
-void TLB_print(struct TLB *cache) {
+// print all pages currently in the TLB, for debugging purposes
+void TLB_print(struct TLB *cache)
+{
     int i = 0;
     while (i < cache->num_pages) {
         if (*(cache->pages + i) == NULL) {
@@ -122,7 +130,7 @@ void TLB_print(struct TLB *cache) {
     printf("~~~~~~~~~~~\n");
 }
 
-//helper function for converting array of integers to integer
+// helper function for converting array of integers to integer
 unsigned int array_to_int(unsigned int array[])
 {
     int res = 0;
@@ -133,7 +141,7 @@ unsigned int array_to_int(unsigned int array[])
     return res;
 }
 
-//utility function for printing all the bits in a page
+// utility function for printing all the bits in a page
 void printBits(unsigned int array[])
 {
     printf("Bits: ");
@@ -207,14 +215,15 @@ struct Page * ARB(struct TLB * cache)
     return LRU;
 }
 
-//Second Chance page replacement algorithm
-struct Page * SC_select(struct TLB *cache) {
+// Second Chance page replacement algorithm
+struct Page * SC_select(struct TLB *cache)
+{
     while (1) {
         if (cache->pages[cache->counter]->SCbit == 1) {
             // giving it a second chance
             cache->pages[cache->counter]->SCbit = 0;
         } else {
-            // choose the FIFO page that has been given second chance
+            // choose the FIFO page that HAS been given second chance
             int temp = cache->counter;
             cache->counter++;
             if (cache->counter == cache->num_pages) {
@@ -332,12 +341,16 @@ struct Page * EARB(struct TLB * table)
 }
 
 //Enhanced Second Chance page replacement algorithm
-struct Page * ESC_select(struct TLB *cache) {
+struct Page * ESC_select(struct TLB *cache)
+{
     int i = 0;
+    // will never go in to an infinite loop (probably not thread-safe)
+    // due to the nature of the ESC algorithm, this is garunteed to return a page, breaking the loop and exiting the function
     while (1) {
         // search through buffer for (0,0) pages
         while (i < cache->num_pages) {
             if (cache->pages[cache->counter]->SCbit == 0 && cache->pages[cache->counter]->dirty == 0) {
+                // increment counter but return the current reference
                 int temp = cache->counter;
                 cache->counter++;
                 if (cache->counter == cache->num_pages) {
@@ -355,6 +368,7 @@ struct Page * ESC_select(struct TLB *cache) {
         // search through buffer for (0,1) pages
         while (i < cache->num_pages) {
             if (cache->pages[cache->counter]->SCbit == 0 && cache->pages[cache->counter]->dirty == 1) {
+                // increment counter but return the current reference
                 int temp = cache->counter;
                 cache->counter++;
                 if (cache->counter == cache->num_pages) {
@@ -374,97 +388,108 @@ struct Page * ESC_select(struct TLB *cache) {
 }
 
 int main(int argc, char *argv[]) {
-    unsigned long page_size = strtoul(argv[2], NULL, 10);
-    FILE *inputfile;
-    //file for reading
-    inputfile = fopen(argv[1], "r");
-    size_t length = 10;
-    char *line = NULL;
-    unsigned long address;
-    int read_counter = 0;
-    int write_counter = 0;
-    int interval = 0;
-    //if interval is given
-    if (argc == 6)
-    {
-        interval = atoi(argv[5]);
-    }
-
-    struct TLB * cache = TLB_constructor(atoi(argv[3]));
-
-    int i = 0;
-    // read line until EOF
-    while (getline(&line, &length, inputfile)) {
-        if (feof(inputfile)) {
-            break;
+    // just in case the arguments aren't there
+    if (argc > 4) {
+        unsigned long page_size = strtoul(argv[2], NULL, 10);
+        FILE *inputfile;
+        // open file for reading
+        if (!(inputfile = fopen(argv[1], "r"))) {
+            exit(1);
         }
-        //for empty/non-relevant lines
-        if (line[0] == 'R' || line[0] == 'W')
+        // length of a line in the file
+        size_t length = 10;
+        char *line = NULL;
+        unsigned long address;
+        int read_counter = 0;
+        int write_counter = 0;
+        int interval = 0;
+        //if interval is given
+        if (argc == 6)
         {
-            //shift every interval for ARB and EARB
-            if (strcmp(argv[4],"ARB") == 0 || strcmp(argv[4],"EARB") == 0)
-            {
-                if (i % interval == 0)
-                {
-                    shiftCache(cache);
-                }
-            }
-
-            //calculating page reference
-            address = strtoul(&line[2], NULL, 16) / page_size;
-
-            // if this page is not in the TLB
-            if (TLB_search(cache, address) == NULL)
-            {
-                //read from disk when it is not in the TLB
-                read_counter++;
-                if (isFull(cache) == 1)
-                {
-                    //page replacement algorithm
-                    struct Page * replacedPage;
-                    if (strcmp(argv[4],"ARB") == 0) {
-                        replacedPage = ARB(cache);
-                    } else if (strcmp(argv[4],"SC") == 0) {
-                        replacedPage = SC_select(cache);
-                    } else if (strcmp(argv[4],"EARB") == 0) {
-                        replacedPage = EARB(cache);
-                    } else if (strcmp(argv[4],"ESC") == 0) {
-                        replacedPage = ESC_select(cache);
-                    }
-                    //write from disk when you replace a dirty page
-                    if (replacedPage->dirty == 1)
-                    {
-                        write_counter++;
-                    }
-                    if (strcmp(argv[4],"SC") == 0 || strcmp(argv[4],"ESC") == 0) {
-                        TLB_delete(cache, replacedPage->reference, 0);
-                    } else {
-                        TLB_delete(cache, replacedPage->reference, 1);
-                    }
-
-                }
-                // add page to TLB
-                TLB_add(cache, address);
-                if (line[0] == 'W') {
-                    TLB_search(cache, address)->dirty = 1;
-                }
-                TLB_search(cache, address)->bits[0] = 1;
-            }
-            else
-            {
-                //page is already in TLB, set reference bit to 1 (used)
-                struct Page * currentPage = TLB_search(cache, address);
-                currentPage->bits[0] = 1;
-                currentPage->SCbit = 1;
-                if (line[0] == 'W') {
-                    TLB_search(cache, address)->dirty = 1;
-                }
-            }
-            i++;
+            interval = atoi(argv[5]);
         }
 
+        struct TLB * cache = TLB_constructor(atoi(argv[3]));
+
+        // i is used later as the number of events in the trace
+        int i = 0;
+        // read line until EOF
+        while (getline(&line, &length, inputfile)) {
+            if (feof(inputfile)) {
+                break;
+            }
+            //for empty/non-relevant lines
+            if (line[0] == 'R' || line[0] == 'W')
+            {
+                //shift every interval for ARB and EARB
+                if (strcmp(argv[4],"ARB") == 0 || strcmp(argv[4],"EARB") == 0)
+                {
+                    if (i % interval == 0)
+                    {
+                        shiftCache(cache);
+                    }
+                }
+
+                //calculating page reference
+                address = strtoul(&line[2], NULL, 16) / page_size;
+
+                // if this page is not in the TLB
+                if (TLB_search(cache, address) == NULL)
+                {
+                    //read from disk when it is not in the TLB
+                    read_counter++;
+                    if (isFull(cache) == 1)
+                    {
+                        //page replacement algorithm
+                        struct Page * replacedPage;
+                        if (strcmp(argv[4],"ARB") == 0)
+                        {
+                            replacedPage = ARB(cache);
+                        } else if (strcmp(argv[4],"SC") == 0)
+                        {
+                            replacedPage = SC_select(cache);
+                        } else if (strcmp(argv[4],"EARB") == 0)
+                        {
+                            replacedPage = EARB(cache);
+                        } else if (strcmp(argv[4],"ESC") == 0)
+                        {
+                            replacedPage = ESC_select(cache);
+                        }
+                        //write from disk when you replace a dirty page
+                        if (replacedPage->dirty == 1)
+                        {
+                            write_counter++;
+                        }
+                        if (strcmp(argv[4],"SC") == 0 || strcmp(argv[4],"ESC") == 0) {
+                            TLB_delete(cache, replacedPage->reference, 0);
+                        } else {
+                            TLB_delete(cache, replacedPage->reference, 1);
+                        }
+
+                    }
+                    // add page to TLB
+                    TLB_add(cache, address);
+                    if (line[0] == 'W') {
+                        TLB_search(cache, address)->dirty = 1;
+                    }
+                    TLB_search(cache, address)->bits[0] = 1;
+                }
+                else
+                {
+                    //page is already in TLB, set reference bit to 1 (used)
+                    struct Page * currentPage = TLB_search(cache, address);
+                    currentPage->bits[0] = 1;
+                    currentPage->SCbit = 1;
+                    if (line[0] == 'W') {
+                        TLB_search(cache, address)->dirty = 1;
+                    }
+                }
+                i++;
+            }
+
+        }
+        printf("events in trace:    %d\n", i);
+        printf("total disk reads:   %d\n", read_counter);
+        printf("total disk writes:  %d\n", write_counter);
     }
-    printf("events in trace:    %d\n", i);
-    printf("total disk reads:   %d\n", read_counter);
-    printf("total disk writes:  %d\n", write_counter);
 }
